@@ -11,29 +11,36 @@ class Post:
 
 class Stats:
     def __init__(self, access_token):
-        post_id_set = set()
+        self.post_id_set = set()
         self.access_token = access_token
         self.client_secret = "b32ac1a8ad6b47a5bf5e5ed3548cf675"
-        user_info = requests.get('https://api.instagram.com/v1/users/self/?access_token={0}'.format(self.access_token))
-        user_info_obj = json.loads(user_info.text)
-        num_posts = ((user_info_obj['data'])['counts'])['media']
-        user_id = (user_info_obj['data'])['id']
-        media_info = requests.get('https://api.instagram.com/v1/users/self/media/recent/?access_token={0}&count={1}'.format(self.access_token, num_posts))
+        self.posts = []
+        
+            
+     
+
+    def populate_nearby_media(self):
+        location_request = requests.get('http://freegeoip.net/json')
+        location_req_json = json.loads(location_request.text)
+        lat = location_req_json['latitude']
+        lng = location_req_json['longitude']
+        print(lat)
+        print(lng)
+        media_info = requests.get('https://api.instagram.com/v1/media/search?lat={0}&lng={1}&access_token={2}'.format(lat, lng, self.access_token))
+        print(media_info.text)
         media_info_obj = json.loads(media_info.text)
         medias = media_info_obj['data']
-        self.posts = []
+
         for obj in medias:
             post_id = obj['id']
             created_time = self.get_time_of_day(int(obj['created_time']))
             num_likes = (obj['likes'])['count']
-            if (post_id not in post_ids) {
-                post = Post(post_id, created_time, num_likes, "me")
+            if post_id not in self.post_id_set:
+                post = Post(post_id, created_time, num_likes, "nearby")
                 self.posts.append(post)
-                post_id_set.add(post_id)
-            }
-     
+                self.post_id_set.add(post_id)
 
-    
+
     def get_time_of_day(self, unix_time):
         # converts unix time to the time of the day in seconds from 12:00am
         time_obj = time.localtime(unix_time)
