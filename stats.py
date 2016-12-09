@@ -27,6 +27,13 @@ class Stats:
             post = Post(post_id, created_time, num_likes)
             self.posts.append(post)
 
+    def populate_my_media(self):
+        
+
+    def populate_my_followers_media(self):
+
+    def populate_nearby_media(self):
+
     def get_time_of_day(self, unix_time):
         # converts unix time to the time of the day in seconds from 12:00am
         time_obj = time.localtime(unix_time)
@@ -44,21 +51,25 @@ class Stats:
         time_to_weight_mapping = defaultdict(int)
         for post in self.posts:
             # weight post
-            time_to_weight_mapping[post.created_time] += post.num_likes
+            n_likes = 0
+            if post.post_type == 'follower':
+                n_likes = post.num_likes / 2
+            else if post.post_type == 'nearby':
+                n_likes = post.num_likes / 10
+            else:
+                n_likes = post.num_likes
+            time_to_weight_mapping[post.created_time] += n_likes
             comment_times = self.get_comment_times(post.post_id)
             for t in comment_times:
                 time_to_weight_mapping[t] += comment_weight
-
         return time_to_weight_mapping
 
     def get_expected_time(self, time_to_weight_mapping):
-        
         expected_time = 0
         total_weight = sum(time_to_weight_mapping.values())
         for k in time_to_weight_mapping.keys():
             probability = time_to_weight_mapping[k] / total_weight
             expected_time += (k * probability)
-
         return int(expected_time)
 
     def compute_optimal_time(self):
@@ -68,12 +79,18 @@ class Stats:
 
         total_likes = sum([p.num_likes for p in self.posts])
         comment_weight = int(total_likes / len(self.posts))
-        print('comment wt: {0}'.format(comment_weight))
         time_weights = self.weight_post_times(comment_weight)
-        print('map = {}'.format(time_weights))
         return self.get_expected_time(time_weights)
 
-
+#what to do if there are no posts
+#what to do if there are no likes
+#what to do if there are no comments
+#no followers-get the mean time of posts near current location
+#get optimal location to post
+#get optimal hashtag
+#get optimal colors
+#get optimal filter- the one with the highest mean number of likes
+#to post video or image
 
 
         
