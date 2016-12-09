@@ -3,6 +3,7 @@ from flask import Flask, render_template, redirect, url_for, request
 import requests
 import json
 from stats import Stats
+from bs4 import BeautifulSoup
 
 # create the application object
 app = Flask(__name__)
@@ -25,7 +26,17 @@ def on_callback():
         json_obj = json.loads(response.text)
         access_token = json_obj['access_token']
         statsObj = Stats(access_token)
-        print(statsObj.compute_optimal_time())
+        opt_time = statsObj.compute_optimal_time()
+        f_read = open('templates/results.html', 'r')
+        soup = BeautifulSoup(f_read, 'html.parser')
+        f_read.close()
+        new_tag = soup.new_tag("p")
+        new_tag.string = 'Optimal time to Post: {}'.format(opt_time)
+        original_tag = soup.div
+        original_tag.append(new_tag)
+        html_str = soup.prettify()
+        f_write = open('templates/results.html', 'wb')
+        f_write.write(html_str)
         if not access_token:
             return 'Could not get access token'
     except Exception as e:

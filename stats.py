@@ -3,36 +3,51 @@ import time
 from collections import defaultdict
 
 class Post:
-    def __init__(self, post_id, created_time, num_likes):
+    def __init__(self, post_id, created_time, num_likes, post_type):
         self.post_id = post_id
         self.created_time = created_time
         self.num_likes = num_likes
+        self.post_type = post_type
 
 class Stats:
     def __init__(self, access_token):
+        self.post_id_set = set()
+        self.posts = []
         self.access_token = access_token
         self.client_secret = "b32ac1a8ad6b47a5bf5e5ed3548cf675"
-        user_info = requests.get('https://api.instagram.com/v1/users/self/?access_token={0}'.format(self.access_token))
-        user_info_obj = json.loads(user_info.text)
-        num_posts = ((user_info_obj['data'])['counts'])['media']
-        user_id = (user_info_obj['data'])['id']
-        media_info = requests.get('https://api.instagram.com/v1/users/self/media/recent/?access_token={0}&count={1}'.format(self.access_token, num_posts))
-        media_info_obj = json.loads(media_info.text)
-        medias = media_info_obj['data']
-        self.posts = []
-        for obj in medias:
+        self.populate_my_media()
+        self.populate_my_followers_media()
+
+    def populate_my_media(self):
+        my_media_info = requests.get('https://api.instagram.com/v1/users/self/media/recent/?access_token={0}'.format(self.access_token))
+        my_media_info_obj = json.loads(media_info.text)
+        my_medias = my_media_info_obj['data']
+        for obj in my_medias:
             post_id = obj['id']
             created_time = self.get_time_of_day(int(obj['created_time']))
             num_likes = (obj['likes'])['count']
-            post = Post(post_id, created_time, num_likes)
-            self.posts.append(post)
-
-    def populate_my_media(self):
-        
+            if post_id not in self.post_id_set:
+                post = Post(post_id, created_time, num_likes, "me")
+                self.posts.append(post)
+                self.post_id_set.add(post_id)
 
     def populate_my_followers_media(self):
-
-    def populate_nearby_media(self):
+        followers_info = requests.get('https://api.instagram.com/v1/users/self/followed-by?access_token={0}'.format(self.access_token))
+        followers_obj = json.loads(followers_info.text)
+        followers = followers_obj['data']
+        for follower in followers:
+            follower_id = int(follower['id'])
+            follower_medias = requests.get('https://api.instagram.com/v1/users/{0}/media/recent/?access_token={1}'.format(follower_id, self.access_token))
+            follower_medias_obj = json.loads(media_info.text)
+            follower_medias = follower_medias_obj['data']
+            for obj in follower_medias:
+                post_id = obj['id']
+                created_time = self.get_time_of_day(int(obj['created_time']))
+                num_likes = (obj['likes'])['count']
+                if post_id not in self.post_id_set:
+                    post = Post(post_id, created_time, num_likes, "me")
+                    self.posts.append(post)
+                    self.post_id_set.add(post_id)
 
     def get_time_of_day(self, unix_time):
         # converts unix time to the time of the day in seconds from 12:00am
@@ -91,6 +106,7 @@ class Stats:
 #get optimal colors
 #get optimal filter- the one with the highest mean number of likes
 #to post video or image
+
 
 
         
