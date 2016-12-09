@@ -29,19 +29,23 @@ def on_callback():
         opt_time = statsObj.compute_optimal_time()
         f_read = open('templates/results.html', 'r')
         soup = BeautifulSoup(f_read, 'html.parser')
-        f_read.close()
         new_tag = soup.new_tag("p")
         new_tag.string = 'Optimal time to Post: {}'.format(opt_time)
         original_tag = soup.div
-        original_tag.append(new_tag)
-        html_str = soup.prettify()
-        f_write = open('templates/results.html', 'wb')
+        if original_tag.p is not None:
+            original_tag.p.replace_with(new_tag)
+        else:
+            original_tag.append(new_tag)
+        html_str = soup.prettify(formatter="html")
+        f_read.close()
+        f_write = open('templates/results.html', 'w')
         f_write.write(html_str)
+        f_write.close()
         if not access_token:
             return 'Could not get access token'
+
     except Exception as e:
         print(e)
-
     return render_template('results.html')
 
 # start the server with the 'run()' method

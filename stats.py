@@ -12,15 +12,15 @@ class Post:
 class Stats:
     def __init__(self, access_token):
         self.post_id_set = set()
-        self.posts = []
         self.access_token = access_token
         self.client_secret = "b32ac1a8ad6b47a5bf5e5ed3548cf675"
+        self.posts = []
         self.populate_my_media()
-        self.populate_my_followers_media()
-
+        # self.populate_my_followers_media()
+    
     def populate_my_media(self):
         my_media_info = requests.get('https://api.instagram.com/v1/users/self/media/recent/?access_token={0}'.format(self.access_token))
-        my_media_info_obj = json.loads(media_info.text)
+        my_media_info_obj = json.loads(my_media_info.text)
         my_medias = my_media_info_obj['data']
         for obj in my_medias:
             post_id = obj['id']
@@ -31,6 +31,24 @@ class Stats:
                 self.posts.append(post)
                 self.post_id_set.add(post_id)
 
+    def populate_nearby_media(self):
+        location_request = requests.get('http://freegeoip.net/json')
+        location_req_json = json.loads(location_request.text)
+        lat = location_req_json['latitude']
+        lng = location_req_json['longitude']
+        print(lat)
+        print(lng)
+        media_info = requests.get('https://api.instagram.com/v1/media/search?lat={0}&lng={1}&access_token={2}'.format(lat, lng, self.access_token))
+        print(media_info.text)
+        media_info_obj = json.loads(media_info.text)
+        medias = media_info_obj['data']
+
+        for obj in medias:
+            if post_id not in self.post_id_set:
+                post = Post(post_id, created_time, num_likes, "nearby")
+                self.posts.append(post)
+                self.post_id_set.add(post_id)
+
     def populate_my_followers_media(self):
         followers_info = requests.get('https://api.instagram.com/v1/users/self/followed-by?access_token={0}'.format(self.access_token))
         followers_obj = json.loads(followers_info.text)
@@ -38,14 +56,14 @@ class Stats:
         for follower in followers:
             follower_id = int(follower['id'])
             follower_medias = requests.get('https://api.instagram.com/v1/users/{0}/media/recent/?access_token={1}'.format(follower_id, self.access_token))
-            follower_medias_obj = json.loads(media_info.text)
+            follower_medias_obj = json.loads(follower_medias.text)
             follower_medias = follower_medias_obj['data']
             for obj in follower_medias:
                 post_id = obj['id']
                 created_time = self.get_time_of_day(int(obj['created_time']))
                 num_likes = (obj['likes'])['count']
                 if post_id not in self.post_id_set:
-                    post = Post(post_id, created_time, num_likes, "me")
+                    post = Post(post_id, created_time, num_likes, "follower")
                     self.posts.append(post)
                     self.post_id_set.add(post_id)
 
@@ -69,7 +87,7 @@ class Stats:
             n_likes = 0
             if post.post_type == 'follower':
                 n_likes = post.num_likes / 2
-            else if post.post_type == 'nearby':
+            elif post.post_type == 'nearby':
                 n_likes = post.num_likes / 10
             else:
                 n_likes = post.num_likes
