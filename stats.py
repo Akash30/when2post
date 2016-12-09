@@ -58,11 +58,13 @@ class Stats:
     def compute_optimal_time():
         if len(self.posts) == 0:
             print('No data found')
+            return -1
 
         total_likes = sum([p.num_likes for p in self.posts])
         comment_weight = int(total_likes / len(self.posts))
         time_weights = weight_post_times(comment_weight)
         return get_expected_time(time_weights)
+            
 
 
 
