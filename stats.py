@@ -1,6 +1,7 @@
 import requests, json
 import time
 from collections import defaultdict
+from colorthief import ColorThief
 
 class Post:
     def __init__(self, post_id, created_time, num_likes, post_type):
@@ -8,6 +9,7 @@ class Post:
         self.created_time = created_time
         self.num_likes = num_likes
         self.post_type = post_type
+
 
 class Stats:
     def __init__(self, access_token):
@@ -36,10 +38,9 @@ class Stats:
         location_req_json = json.loads(location_request.text)
         lat = location_req_json['latitude']
         lng = location_req_json['longitude']
-        print(lat)
-        print(lng)
+        
         media_info = requests.get('https://api.instagram.com/v1/media/search?lat={0}&lng={1}&access_token={2}'.format(lat, lng, self.access_token))
-        print(media_info.text)
+       
         media_info_obj = json.loads(media_info.text)
         medias = media_info_obj['data']
 
@@ -114,6 +115,10 @@ class Stats:
         comment_weight = int(total_likes / len(self.posts))
         time_weights = self.weight_post_times(comment_weight)
         return self.get_expected_time(time_weights)
+
+
+    def get_dominant_colors(self):
+        
 
 #what to do if there are no posts
 #what to do if there are no likes

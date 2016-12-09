@@ -27,10 +27,14 @@ def on_callback():
         access_token = json_obj['access_token']
         statsObj = Stats(access_token)
         opt_time = statsObj.compute_optimal_time()
+        hours = int(opt_time / 3600)
+        minutes = int((opt_time - hours * 3600) / 60)
+        seconds = (opt_time - hours * 3600 - minutes * 60)
+        formatted_time = '{}:{}:{}'.format(hours, minutes, seconds)
         f_read = open('templates/results.html', 'r')
         soup = BeautifulSoup(f_read, 'html.parser')
         new_tag = soup.new_tag("p")
-        new_tag.string = 'Optimal time to Post: {}'.format(opt_time)
+        new_tag.string = 'Optimal time to Post: {}'.format(formatted_time)
         original_tag = soup.div
         if original_tag.p is not None:
             original_tag.p.replace_with(new_tag)
