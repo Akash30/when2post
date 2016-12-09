@@ -25,6 +25,7 @@ def on_callback():
         json_obj = json.loads(response.text)
         access_token = json_obj['access_token']
         statsObj = Stats(access_token)
+        print(statsObj.compute_optimal_time())
         if not access_token:
             return 'Could not get access token'
     except Exception as e:
