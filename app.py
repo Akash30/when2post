@@ -26,20 +26,30 @@ def on_callback():
         json_obj = json.loads(response.text)
         access_token = json_obj['access_token']
         statsObj = Stats(access_token)
+        color_list = statsObj.get_dominant_colors()
         opt_time = statsObj.compute_optimal_time()
+
         hours = int(opt_time / 3600)
         minutes = int((opt_time - hours * 3600) / 60)
         seconds = (opt_time - hours * 3600 - minutes * 60)
         formatted_time = '{}:{}:{}'.format(hours, minutes, seconds)
+        best_filter = statsObj.get_best_filter()
         f_read = open('templates/results.html', 'r')
         soup = BeautifulSoup(f_read, 'html.parser')
-        new_tag = soup.new_tag("p")
-        new_tag.string = 'Optimal time to Post: {}'.format(formatted_time)
-        original_tag = soup.div
-        if original_tag.p is not None:
-            original_tag.p.replace_with(new_tag)
+        new_tag1 = soup.new_tag("p")
+        new_tag1.string = 'Optimal time to Post: {}'.format(formatted_time)
+        original_tag1 = soup.div
+        if original_tag1.p is not None:
+            original_tag1.p.replace_with(new_tag1)
         else:
-            original_tag.append(new_tag)
+            original_tag1.append(new_tag1)
+        new_tag2 = soup.new_tag("h2")
+        new_tag2.string = 'Best Filter to Use: {}'.format(best_filter)
+        original_tag2 = soup.div
+        if original_tag2.h2 is not None:
+            original_tag2.h2.replace_with(new_tag2)
+        else:
+            original_tag2.append(new_tag2)
         html_str = soup.prettify(formatter="html")
         f_read.close()
         f_write = open('templates/results.html', 'w')

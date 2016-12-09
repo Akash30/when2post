@@ -2,13 +2,18 @@ import requests, json
 import time
 from collections import defaultdict
 from colorthief import ColorThief
+import urllib
+import operator
+import os
 
 class Post:
-    def __init__(self, post_id, created_time, num_likes, post_type):
+    def __init__(self, post_id, created_time, num_likes, post_type, filter_str, image_url):
         self.post_id = post_id
         self.created_time = created_time
         self.num_likes = num_likes
         self.post_type = post_type
+        self.filter_str = filter_str
+        self.image_url = image_url
 
 
 class Stats:
@@ -17,8 +22,9 @@ class Stats:
         self.access_token = access_token
         self.client_secret = "b32ac1a8ad6b47a5bf5e5ed3548cf675"
         self.posts = []
-        self.populate_my_media()
-        # self.populate_my_followers_media()
+        self.populate_my_media() #what if we have no posts
+        #self.populate_my_followers_media() #what if we have no followers
+        #what if there is no nearby media
     
     def populate_my_media(self):
         my_media_info = requests.get('https://api.instagram.com/v1/users/self/media/recent/?access_token={0}'.format(self.access_token))
@@ -28,8 +34,10 @@ class Stats:
             post_id = obj['id']
             created_time = self.get_time_of_day(int(obj['created_time']))
             num_likes = (obj['likes'])['count']
+            filter_str = obj['filter']
+            image_url = obj["images"]["standard_resolution"]["url"]
             if post_id not in self.post_id_set:
-                post = Post(post_id, created_time, num_likes, "me")
+                post = Post(post_id, created_time, num_likes, "me", filter_str, image_url)
                 self.posts.append(post)
                 self.post_id_set.add(post_id)
 
@@ -43,10 +51,15 @@ class Stats:
        
         media_info_obj = json.loads(media_info.text)
         medias = media_info_obj['data']
-
+      
         for obj in medias:
+            post_id = obj['id']
+            created_time = self.get_time_of_day(int(obj['created_time']))
+            num_likes = (obj['likes'])['count']
+            filter_str = obj['filter']
+            image_url = obj["images"]["standard_resolution"]["url"]
             if post_id not in self.post_id_set:
-                post = Post(post_id, created_time, num_likes, "nearby")
+                post = Post(post_id, created_time, num_likes, "nearby", filter_str, image_url)
                 self.posts.append(post)
                 self.post_id_set.add(post_id)
 
@@ -63,8 +76,10 @@ class Stats:
                 post_id = obj['id']
                 created_time = self.get_time_of_day(int(obj['created_time']))
                 num_likes = (obj['likes'])['count']
+                filter_str = obj['filter']
+                image_url = obj["images"]["standard_resolution"]["url"]
                 if post_id not in self.post_id_set:
-                    post = Post(post_id, created_time, num_likes, "follower")
+                    post = Post(post_id, created_time, num_likes, "follower", filter_str, image_url)
                     self.posts.append(post)
                     self.post_id_set.add(post_id)
 
@@ -108,17 +123,54 @@ class Stats:
 
     def compute_optimal_time(self):
         if len(self.posts) == 0:
-            print('No data found')
+            print('No posts data found')
             return -1
-
         total_likes = sum([p.num_likes for p in self.posts])
         comment_weight = int(total_likes / len(self.posts))
         time_weights = self.weight_post_times(comment_weight)
         return self.get_expected_time(time_weights)
 
 
+
     def get_dominant_colors(self):
+        color_frequencies = defaultdict(int)
+        color_weights = defaultdict(int)
+        for p in self.posts:
+            urllib.request.urlretrieve(p.image_url, 'image')
+            color_thief = ColorThief('image')
+            palette = color_thief.get_palette(color_count=3, quality=1)
+            for color in palette:
+                color_weights[color] += p.num_likes
+                color_frequencies[color] += 1
+        os.remove('image')
+        for k in color_weights.keys():
+            color_weights[k] = color_weights[k] / color_frequencies[k]
+        print(color_weights)
+        sorted_colors = sorted(color_weights.items(), key=operator.itemgetter(1))
+        return [c[0] for c in sorted_colors[-1:-4:-1]]
         
+
+
+    def get_best_filter(self):
+        if len(self.posts) == 0:
+            print('No posts data found')
+            return -1
+        filter_dict_frequencies = defaultdict(int)
+        filter_dict_likes = defaultdict(int)
+        for post in self.posts:
+            filter_str = post.filter_str
+            filter_dict_frequencies[filter_str] += 1
+            filter_dict_likes[filter_str] += post.num_likes
+        for key in filter_dict_frequencies.keys():
+            filter_dict_frequencies[filter_str] = filter_dict_likes[key]/filter_dict_frequencies[key]
+        max_filter = ""
+        max = 0
+        for key in filter_dict_frequencies:
+            if filter_dict_frequencies[key] > max:
+                max = filter_dict_frequencies[key]
+                max_filter = key
+        return max_filter
+
 
 #what to do if there are no posts
 #what to do if there are no likes
