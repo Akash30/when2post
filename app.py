@@ -4,6 +4,7 @@ import requests
 import json
 from stats import Stats
 from bs4 import BeautifulSoup
+import base64
 
 
 # create the application object
@@ -59,12 +60,16 @@ def on_callback():
             head.style.replace_with(new_tag3)
         else: 
             head.append(new_tag3)
+        src_bytes = None
+        with open('wordcloud.png', 'rb') as image_file:
+            src_bytes = base64.b64encode(image_file.read())
+        src_text = str(src_bytes)
+        src_text = src_text[2:len(src_text) - 1]
+        src_text = 'data:image/png;base64,' + src_text
+        new_tag4 = soup.new_tag('img', src=src_text)
         
-        new_tag4 = soup.new_tag("img", src="http://localhost:5000/callback/wordcloud.png")
-        print(new_tag4)
         body = soup.body
         if body.img is not None:
-            pass
             body.img.replace_with(new_tag4)
         else:
             body.append(new_tag4)
@@ -76,7 +81,7 @@ def on_callback():
         if not access_token:
             return 'Could not get access token'
     except Exception as e:
-        print('Exception occured in app')
+        print(e)
     return render_template('results.html')
 
 # start the server with the 'run()' method
