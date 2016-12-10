@@ -6,15 +6,17 @@ import urllib
 import operator
 import os
 import colormap
+from wordcloud import WordCloud
 
 class Post:
-    def __init__(self, post_id, created_time, num_likes, post_type, filter_str, image_url):
+    def __init__(self, post_id, created_time, num_likes, post_type, filter_str, image_url, tags):
         self.post_id = post_id
         self.created_time = created_time
         self.num_likes = num_likes
         self.post_type = post_type
         self.filter_str = filter_str
         self.image_url = image_url
+        self.tags = tags
 
 
 class Stats:
@@ -26,7 +28,7 @@ class Stats:
         self.populate_my_media() #what if we have no posts
         # self.populate_my_followers_media() #what if we have no followers
         #what if there is no nearby media
-        print(len(self.posts))
+        
     
     
     def populate_media_helper(self, media_info_obj):
@@ -36,9 +38,13 @@ class Stats:
             created_time = self.get_time_of_day(int(obj['created_time']))
             num_likes = (obj['likes'])['count']
             filter_str = obj['filter']
-            image_url = obj["images"]["standard_resolution"]["url"]
+            tags = obj["tags"]
+            if obj["type"] == "image":
+                image_url = obj["images"]["standard_resolution"]["url"]
+            else:
+                image_url = None
             if post_id not in self.post_id_set:
-                post = Post(post_id, created_time, num_likes, "me", filter_str, image_url)
+                post = Post(post_id, created_time, num_likes, "me", filter_str, image_url, tags)
                 self.posts.append(post)
                 self.post_id_set.add(post_id)
 
@@ -142,6 +148,7 @@ class Stats:
         total_likes = sum([p.num_likes for p in self.posts])
         comment_weight = int(total_likes / len(self.posts))
         time_weights = self.weight_post_times(comment_weight)
+        print('total likes = {} and average likes = {}'.format(total_likes, comment_weight))
         return self.get_expected_time(time_weights)
 
 
@@ -150,6 +157,8 @@ class Stats:
         color_frequencies = defaultdict(int)
         color_weights = defaultdict(int)
         for p in self.posts:
+            if p.image_url is None:
+                continue
             urllib.request.urlretrieve(p.image_url, 'image')
             color_thief = ColorThief('image')
             palette = color_thief.get_palette(color_count=5, quality=1)
@@ -183,6 +192,23 @@ class Stats:
                 max = filter_dict_frequencies[key]
                 max_filter = key
         return max_filter
+
+
+    def create_tags_wordcloud(self):
+        if len(self.posts) == 0:
+            print('No posts data found')
+            return -1
+        text = ''
+        for post in self.posts:
+            for tag in post.tags:
+                text += tag + '\n'
+        
+        wordcloud = WordCloud().generate(text)
+        image = wordcloud.to_image()
+        image.save('wordcloud.png')
+        return 'wordcloud.png'
+
+
 
 
 #what to do if there are no posts

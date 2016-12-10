@@ -5,6 +5,7 @@ import json
 from stats import Stats
 from bs4 import BeautifulSoup
 
+
 # create the application object
 app = Flask(__name__)
 
@@ -26,9 +27,9 @@ def on_callback():
         json_obj = json.loads(response.text)
         access_token = json_obj['access_token']
         statsObj = Stats(access_token)
-        color_list = statsObj.get_dominant_colors()
+        # color_list = statsObj.get_dominant_colors()
         opt_time = statsObj.compute_optimal_time()
-
+        print(statsObj.create_tags_wordcloud())
         hours = int(opt_time / 3600)
         minutes = int((opt_time - hours * 3600) / 60)
         seconds = (opt_time - hours * 3600 - minutes * 60)
