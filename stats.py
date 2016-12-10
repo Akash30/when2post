@@ -24,7 +24,6 @@ class Stats:
         my_media_info = requests.get('https://api.instagram.com/v1/users/self/media/recent/?access_token={0}'.format(self.access_token))
         my_media_info_obj = json.loads(my_media_info.text)
         my_medias = my_media_info_obj['data']
-        print(my_medias)
         for obj in my_medias:
             post_id = obj['id']
             created_time = self.get_time_of_day(int(obj['created_time']))
@@ -40,10 +39,7 @@ class Stats:
         location_req_json = json.loads(location_request.text)
         lat = location_req_json['latitude']
         lng = location_req_json['longitude']
-        print(lat)
-        print(lng)
         media_info = requests.get('https://api.instagram.com/v1/media/search?lat={0}&lng={1}&access_token={2}'.format(lat, lng, self.access_token))
-        print(media_info.text)
         media_info_obj = json.loads(media_info.text)
         medias = media_info_obj['data']
       
