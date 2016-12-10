@@ -5,6 +5,7 @@ from colorthief import ColorThief
 import urllib
 import operator
 import os
+import colormap
 
 class Post:
     def __init__(self, post_id, created_time, num_likes, post_type, filter_str, image_url):
@@ -23,14 +24,14 @@ class Stats:
         self.client_secret = "b32ac1a8ad6b47a5bf5e5ed3548cf675"
         self.posts = []
         self.populate_my_media() #what if we have no posts
-        #self.populate_my_followers_media() #what if we have no followers
+        # self.populate_my_followers_media() #what if we have no followers
         #what if there is no nearby media
+        print(len(self.posts))
     
-    def populate_my_media(self):
-        my_media_info = requests.get('https://api.instagram.com/v1/users/self/media/recent/?access_token={0}'.format(self.access_token))
-        my_media_info_obj = json.loads(my_media_info.text)
-        my_medias = my_media_info_obj['data']
-        for obj in my_medias:
+    
+    def populate_media_helper(self, media_info_obj):
+        medias = media_info_obj['data']
+        for obj in medias:
             post_id = obj['id']
             created_time = self.get_time_of_day(int(obj['created_time']))
             num_likes = (obj['likes'])['count']
@@ -40,6 +41,16 @@ class Stats:
                 post = Post(post_id, created_time, num_likes, "me", filter_str, image_url)
                 self.posts.append(post)
                 self.post_id_set.add(post_id)
+
+    def populate_my_media(self):
+        my_media_info = requests.get('https://api.instagram.com/v1/users/self/media/recent/?access_token={0}'.format(self.access_token))
+        my_media_info_obj = json.loads(my_media_info.text)
+        self.populate_media_helper(my_media_info_obj)
+        
+        while my_media_info_obj['pagination']:
+            my_media_info = requests.get(my_media_info_obj['pagination']['next_url'])
+            my_media_info_obj = json.loads(my_media_info.text)
+            self.populate_media_helper(my_media_info_obj)
 
     def populate_nearby_media(self):
         location_request = requests.get('http://freegeoip.net/json')
@@ -66,6 +77,7 @@ class Stats:
     def populate_my_followers_media(self):
         followers_info = requests.get('https://api.instagram.com/v1/users/self/followed-by?access_token={0}'.format(self.access_token))
         followers_obj = json.loads(followers_info.text)
+        print(followers_obj)
         followers = followers_obj['data']
         for follower in followers:
             follower_id = int(follower['id'])
@@ -103,8 +115,10 @@ class Stats:
             n_likes = 0
             if post.post_type == 'follower':
                 n_likes = post.num_likes / 2
+                comment_weight /= 2
             elif post.post_type == 'nearby':
                 n_likes = post.num_likes / 10
+                comment_weight /= 10
             else:
                 n_likes = post.num_likes
             time_to_weight_mapping[post.created_time] += n_likes
@@ -138,16 +152,15 @@ class Stats:
         for p in self.posts:
             urllib.request.urlretrieve(p.image_url, 'image')
             color_thief = ColorThief('image')
-            palette = color_thief.get_palette(color_count=3, quality=1)
+            palette = color_thief.get_palette(color_count=5, quality=1)
             for color in palette:
                 color_weights[color] += p.num_likes
                 color_frequencies[color] += 1
         os.remove('image')
         for k in color_weights.keys():
             color_weights[k] = color_weights[k] / color_frequencies[k]
-        print(color_weights)
         sorted_colors = sorted(color_weights.items(), key=operator.itemgetter(1))
-        return [c[0] for c in sorted_colors[-1:-4:-1]]
+        return [colormap.rgb2hex(c[0][0], c[0][1], c[0][2]) for c in sorted_colors[-1:-6:-1]]
         
 
 
