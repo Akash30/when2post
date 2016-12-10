@@ -5,6 +5,7 @@ import json
 from stats import Stats
 from bs4 import BeautifulSoup
 
+
 # create the application object
 app = Flask(__name__)
 
@@ -27,6 +28,8 @@ def on_callback():
         access_token = json_obj['access_token']
         statsObj = Stats(access_token)
         opt_time = statsObj.compute_optimal_time()
+        statsObj.create_tags_wordcloud()
+        print('created wordcloud')
         hours = int(opt_time / 3600)
         minutes = int((opt_time - hours * 3600) / 60)
         seconds = (opt_time - hours * 3600 - minutes * 60)
@@ -56,6 +59,15 @@ def on_callback():
             head.style.replace_with(new_tag3)
         else: 
             head.append(new_tag3)
+        
+        new_tag4 = soup.new_tag("img", src="http://localhost:5000/callback/wordcloud.png")
+        print(new_tag4)
+        body = soup.body
+        if body.img is not None:
+            pass
+            body.img.replace_with(new_tag4)
+        else:
+            body.append(new_tag4)
         html_str = soup.prettify(formatter="html")
         f_read.close()
         f_write = open('templates/results.html', 'w')

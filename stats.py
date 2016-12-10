@@ -7,15 +7,17 @@ import operator
 import os
 import colormap
 import itertools
+from wordcloud import WordCloud
 
 class Post:
-    def __init__(self, post_id, created_time, num_likes, post_type, filter_str, image_url):
+    def __init__(self, post_id, created_time, num_likes, post_type, filter_str, image_url, tags):
         self.post_id = post_id
         self.created_time = created_time
         self.num_likes = num_likes
         self.post_type = post_type
         self.filter_str = filter_str
         self.image_url = image_url
+        self.tags = tags
 
 class Stats:
     def __init__(self, access_token):
@@ -33,8 +35,9 @@ class Stats:
         num_likes = (obj['likes'])['count']
         filter_str = obj['filter']
         image_url = obj["images"]["standard_resolution"]["url"]
+        tags = obj['tags']
         if post_id not in self.post_id_set:
-            post = Post(post_id, created_time, num_likes, post_type, filter_str, image_url)
+            post = Post(post_id, created_time, num_likes, post_type, filter_str, image_url, tags)
             self.posts.append(post)
             self.post_id_set.add(post_id)
 
@@ -44,14 +47,14 @@ class Stats:
         while True:
             try:
                 next(gen)
-            except StopIteration:
+            except Exception as e:
+                print(e)
                 break
 
     def populate_my_media(self):
         my_media_info = requests.get('https://api.instagram.com/v1/users/self/media/recent/?access_token={0}'.format(self.access_token))
         my_media_info_obj = json.loads(my_media_info.text)
         self.populate_media_helper(my_media_info_obj, "me")
-        
         while my_media_info_obj['pagination']:
             my_media_info = requests.get(my_media_info_obj['pagination']['next_url'])
             my_media_info_obj = json.loads(my_media_info.text)
@@ -229,6 +232,22 @@ class Stats:
                 mx = filter_dict_frequencies[key]
                 max_filter = key
         return max_filter
+
+    def create_tags_wordcloud(self):
+        if len(self.posts) == 0:
+            print('No posts data found')
+            return -1
+        text = ''
+        for post in self.posts:
+            for tag in post.tags:
+                text += tag + '\n'
+        
+        wordcloud = WordCloud().generate(text)
+        image = wordcloud.to_image()
+        image.save('wordcloud.png')
+        
+
+
 
 
 #what to do if there are no posts
