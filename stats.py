@@ -1,14 +1,21 @@
 import requests, json
 import time
 from collections import defaultdict
+from colorthief import ColorThief
+import urllib
+import operator
+import os
+import colormap
+import itertools
 
 class Post:
-    def __init__(self, post_id, created_time, num_likes, post_type, filter_str):
+    def __init__(self, post_id, created_time, num_likes, post_type, filter_str, image_url):
         self.post_id = post_id
         self.created_time = created_time
         self.num_likes = num_likes
         self.post_type = post_type
         self.filter_str = filter_str
+        self.image_url = image_url
 
 class Stats:
     def __init__(self, access_token):
@@ -17,22 +24,38 @@ class Stats:
         self.client_secret = "b32ac1a8ad6b47a5bf5e5ed3548cf675"
         self.posts = []
         self.populate_my_media() #what if we have no posts
-        #self.populate_my_followers_media() #what if we have no followers
+        # self.populate_my_followers_media() #what if we have no followers
         #what if there is no nearby media
     
+    def helper_posts(self, obj, post_type):
+        post_id = obj['id']
+        created_time = self.get_time_of_day(int(obj['created_time']))
+        num_likes = (obj['likes'])['count']
+        filter_str = obj['filter']
+        image_url = obj["images"]["standard_resolution"]["url"]
+        if post_id not in self.post_id_set:
+            post = Post(post_id, created_time, num_likes, post_type, filter_str, image_url)
+            self.posts.append(post)
+            self.post_id_set.add(post_id)
+
+    def populate_media_helper(self, media_info_obj, post_type):
+        medias = media_info_obj['data']
+        gen = (self.helper_posts(obj, post_type) for obj in medias)
+        while True:
+            try:
+                next(gen)
+            except StopIteration:
+                break
+
     def populate_my_media(self):
         my_media_info = requests.get('https://api.instagram.com/v1/users/self/media/recent/?access_token={0}'.format(self.access_token))
         my_media_info_obj = json.loads(my_media_info.text)
-        my_medias = my_media_info_obj['data']
-        for obj in my_medias:
-            post_id = obj['id']
-            created_time = self.get_time_of_day(int(obj['created_time']))
-            num_likes = (obj['likes'])['count']
-            filter_str = obj['filter']
-            if post_id not in self.post_id_set:
-                post = Post(post_id, created_time, num_likes, "me", filter_str)
-                self.posts.append(post)
-                self.post_id_set.add(post_id)
+        self.populate_media_helper(my_media_info_obj, "me")
+        
+        while my_media_info_obj['pagination']:
+            my_media_info = requests.get(my_media_info_obj['pagination']['next_url'])
+            my_media_info_obj = json.loads(my_media_info.text)
+            self.populate_media_helper(my_media_info_obj, "me")
 
     def populate_nearby_media(self):
         location_request = requests.get('http://freegeoip.net/json')
@@ -41,36 +64,34 @@ class Stats:
         lng = location_req_json['longitude']
         media_info = requests.get('https://api.instagram.com/v1/media/search?lat={0}&lng={1}&access_token={2}'.format(lat, lng, self.access_token))
         media_info_obj = json.loads(media_info.text)
-        medias = media_info_obj['data']
-      
-        for obj in medias:
-            post_id = obj['id']
-            created_time = self.get_time_of_day(int(obj['created_time']))
-            num_likes = (obj['likes'])['count']
-            filter_str = obj['filter']
-            if post_id not in self.post_id_set:
-                post = Post(post_id, created_time, num_likes, "nearby", filter_str)
-                self.posts.append(post)
-                self.post_id_set.add(post_id)
+        self.populate_media_helper(media_info_obj, "nearby")
+
+        while media_info_obj['pagination']:
+            media_info = requests.get(media_info_obj['pagination']['next_url'])
+            media_info_obj = json.loads(media_info.text)
+            self.populate_media_helper(media_info_obj, "nearby")
+    
+    def followers_helper(self, follower):
+        follower_id = int(follower['id'])
+        follower_media = requests.get('https://api.instagram.com/v1/users/{0}/media/recent/?access_token={1}'.format(follower_id, self.access_token))
+        follower_media_obj = json.loads(follower_medias.text)
+        self.populate_media_helper(follower_media_obj, "follower")
+
+        while follower_media_obj['pagination']:
+            media_info = requests.get(follower_media_obj['pagination']['next_url'])
+            follower_media_obj = json.loads(media_info.text)
+            self.populate_media_helper(follower_media_obj, "follower")
 
     def populate_my_followers_media(self):
         followers_info = requests.get('https://api.instagram.com/v1/users/self/followed-by?access_token={0}'.format(self.access_token))
         followers_obj = json.loads(followers_info.text)
         followers = followers_obj['data']
-        for follower in followers:
-            follower_id = int(follower['id'])
-            follower_medias = requests.get('https://api.instagram.com/v1/users/{0}/media/recent/?access_token={1}'.format(follower_id, self.access_token))
-            follower_medias_obj = json.loads(follower_medias.text)
-            follower_medias = follower_medias_obj['data']
-            for obj in follower_medias:
-                post_id = obj['id']
-                created_time = self.get_time_of_day(int(obj['created_time']))
-                num_likes = (obj['likes'])['count']
-                filter_str = obj['filter']
-                if post_id not in self.post_id_set:
-                    post = Post(post_id, created_time, num_likes, "follower", filter_str)
-                    self.posts.append(post)
-                    self.post_id_set.add(post_id)
+        gen = (self.followers_helper(follower) for follower in followers)
+        while True:
+            try:
+                next(gen)
+            except StopIteration:
+                break
 
     def get_time_of_day(self, unix_time):
         # converts unix time to the time of the day in seconds from 12:00am
@@ -82,33 +103,52 @@ class Stats:
         comments_info = requests.get('https://api.instagram.com/v1/media/{0}/comments?access_token={1}'.format(post_id, self.access_token))
         comments_info_obj = json.loads(comments_info.text)
         comments = comments_info_obj['data']
-        comment_times = [self.get_time_of_day(int(comment['created_time'])) for comment in comments]
-        return comment_times
+        return [self.get_time_of_day(int(comment['created_time'])) for comment in comments]
+
+    def increment_times(self, d, weight, t):
+        d[t] += weight
+    
+    def weight_posts(self, post, d, comment_weight):
+        n_likes = 0
+        if post.post_type == 'follower':
+            n_likes = post.num_likes / 2
+            comment_weight /= 2
+        elif post.post_type == 'nearby':
+            n_likes = post.num_likes / 10
+            comment_weight /= 10
+        else:
+            n_likes = post.num_likes
+        d[post.created_time] += n_likes
+        comment_times = self.get_comment_times(post.post_id)
+        gen = (self.increment_times(d, comment_weight, t) for t in comment_times)
+        while True:
+            try:
+                next(gen)
+            except StopIteration:
+                break
 
     def weight_post_times(self, comment_weight):
         time_to_weight_mapping = defaultdict(int)
-        for post in self.posts:
-            # weight post
-            n_likes = 0
-            if post.post_type == 'follower':
-                n_likes = post.num_likes / 2
-            elif post.post_type == 'nearby':
-                n_likes = post.num_likes / 10
-            else:
-                n_likes = post.num_likes
-            time_to_weight_mapping[post.created_time] += n_likes
-            comment_times = self.get_comment_times(post.post_id)
-            for t in comment_times:
-                time_to_weight_mapping[t] += comment_weight
+        gen = (self.weight_posts(post, time_to_weight_mapping, comment_weight) for post in self.posts)
+        while True:
+            try:
+                next(gen)
+            except StopIteration:
+                break
         return time_to_weight_mapping
+    
+    def exp_calc(self, total_wt, time_to_weight_mapping):
+        exp_time = 0
+        for time in time_to_weight_mapping.keys():
+            probability = time_to_weight_mapping[time] / total_wt
+            exp_time += (time * probability)
+            yield exp_time
+
 
     def get_expected_time(self, time_to_weight_mapping):
-        expected_time = 0
         total_weight = sum(time_to_weight_mapping.values())
-        for k in time_to_weight_mapping.keys():
-            probability = time_to_weight_mapping[k] / total_weight
-            expected_time += (k * probability)
-        return int(expected_time)
+        expected_times = itertools.islice(self.exp_calc(total_weight, time_to_weight_mapping), 0, None)
+        return int(list(expected_times)[len(time_to_weight_mapping.keys()) - 1])
 
     def compute_optimal_time(self):
         if len(self.posts) == 0:
@@ -118,6 +158,51 @@ class Stats:
         comment_weight = int(total_likes / len(self.posts))
         time_weights = self.weight_post_times(comment_weight)
         return self.get_expected_time(time_weights)
+    
+    def color_palette_helper(self, color, color_weights, color_frequencies, post):
+        color_weights[color] += post.num_likes
+        color_frequencies[color] += 1
+
+    def color_helper(self, post, color_weights, color_frequencies):
+        urllib.request.urlretrieve(post.image_url, 'image')
+        color_thief = ColorThief('image')
+        palette = color_thief.get_palette(color_count=5)
+        gen = (self.color_palette_helper(color, color_weights, color_frequencies, post) for color in palette)
+        while True:
+            try:
+                next(gen)
+            except StopIteration:
+                break
+
+    def color_wt_helper(self, color_weights, color_frequencies, k):
+        color_weights[k] = color_weights[k] / color_frequencies[k]
+
+    def get_dominant_colors(self):
+        color_frequencies = defaultdict(int)
+        color_weights = defaultdict(int)
+        gen1 = (self.color_helper(p, color_weights, color_frequencies) for p in self.posts)
+        while True:
+            try:
+                next(gen1)
+            except StopIteration:
+                break
+        os.remove('image')
+        gen2 = (self.color_wt_helper(color_weights, color_frequencies, k) for k in color_weights.keys())
+        while True:
+            try:
+                next(gen2)
+            except StopIteration:
+                break
+        sorted_colors = sorted(color_weights.items(), key=operator.itemgetter(1))
+        return [colormap.rgb2hex(c[0][0], c[0][1], c[0][2]) for c in sorted_colors[-1:-6:-1]]
+           
+    def best_filter_helper(self, post, filter_dict_frequencies, filter_dict_likes):
+        filter_str = post.filter_str
+        filter_dict_frequencies[filter_str] += 1
+        filter_dict_likes[filter_str] += post.num_likes
+
+    def best_filter_avg_helper(self, filter_dict_frequencies, filter_dict_likes, key):
+        filter_dict_frequencies[key] = filter_dict_likes[key]/filter_dict_frequencies[key]
 
     def get_best_filter(self):
         if len(self.posts) == 0:
@@ -125,17 +210,23 @@ class Stats:
             return -1
         filter_dict_frequencies = defaultdict(int)
         filter_dict_likes = defaultdict(int)
-        for post in self.posts:
-            filter_str = post.filter_str
-            filter_dict_frequencies[filter_str] += 1
-            filter_dict_likes[filter_str] += post.num_likes
-        for key in filter_dict_frequencies.keys():
-            filter_dict_frequencies[filter_str] = filter_dict_likes[key]/filter_dict_frequencies[key]
+        gen1 = (self.best_filter_helper(post, filter_dict_frequencies, filter_dict_likes) for post in self.posts)
+        while True:
+            try:
+                next(gen1)
+            except StopIteration:
+                break
+        gen2 = (self.best_filter_avg_helper(filter_dict_frequencies, filter_dict_likes, key) for key in filter_dict_frequencies.keys())
+        while True:
+            try:
+                next(gen2)
+            except StopIteration:
+                break
         max_filter = ""
-        max = 0
+        mx = 0
         for key in filter_dict_frequencies:
-            if filter_dict_frequencies[key] > max:
-                max = filter_dict_frequencies[key]
+            if filter_dict_frequencies[key] > mx:
+                mx = filter_dict_frequencies[key]
                 max_filter = key
         return max_filter
 
