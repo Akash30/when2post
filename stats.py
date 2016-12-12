@@ -8,6 +8,7 @@ import os
 import colormap
 import itertools
 from wordcloud import WordCloud
+import matplotlib.pyplot as plt
 
 class Post:
     def __init__(self, post_id, created_time, num_likes, post_type, filter_str, image_url, tags):
@@ -23,9 +24,10 @@ class Stats:
     def __init__(self, access_token):
         self.post_id_set = set()
         self.access_token = access_token
-        self.client_secret = "b32ac1a8ad6b47a5bf5e5ed3548cf675"
+        self.client_secret = 'b32ac1a8ad6b47a5bf5e5ed3548cf675'
         self.posts = []
         self.populate_my_media() #what if we have no posts
+        self.time_to_weight_mapping = {}
         # self.populate_my_followers_media() #what if we have no followers
         #what if there is no nearby media
     
@@ -34,7 +36,9 @@ class Stats:
         created_time = self.get_time_of_day(int(obj['created_time']))
         num_likes = (obj['likes'])['count']
         filter_str = obj['filter']
-        image_url = obj["images"]["standard_resolution"]["url"]
+        image_url = ''
+        if obj['type'] == 'image':
+        	image_url = obj['images']['standard_resolution']['url'] 
         tags = obj['tags']
         if post_id not in self.post_id_set:
             post = Post(post_id, created_time, num_likes, post_type, filter_str, image_url, tags)
@@ -58,7 +62,7 @@ class Stats:
         while my_media_info_obj['pagination']:
             my_media_info = requests.get(my_media_info_obj['pagination']['next_url'])
             my_media_info_obj = json.loads(my_media_info.text)
-            self.populate_media_helper(my_media_info_obj, "me")
+            self.populate_media_helper(my_media_info_obj, 'me')
 
     def populate_nearby_media(self):
         location_request = requests.get('http://freegeoip.net/json')
@@ -67,23 +71,23 @@ class Stats:
         lng = location_req_json['longitude']
         media_info = requests.get('https://api.instagram.com/v1/media/search?lat={0}&lng={1}&access_token={2}'.format(lat, lng, self.access_token))
         media_info_obj = json.loads(media_info.text)
-        self.populate_media_helper(media_info_obj, "nearby")
+        self.populate_media_helper(media_info_obj, 'nearby')
 
         while media_info_obj['pagination']:
             media_info = requests.get(media_info_obj['pagination']['next_url'])
             media_info_obj = json.loads(media_info.text)
-            self.populate_media_helper(media_info_obj, "nearby")
+            self.populate_media_helper(media_info_obj, 'nearby')
     
     def followers_helper(self, follower):
         follower_id = int(follower['id'])
         follower_media = requests.get('https://api.instagram.com/v1/users/{0}/media/recent/?access_token={1}'.format(follower_id, self.access_token))
         follower_media_obj = json.loads(follower_medias.text)
-        self.populate_media_helper(follower_media_obj, "follower")
+        self.populate_media_helper(follower_media_obj, 'follower')
 
         while follower_media_obj['pagination']:
             media_info = requests.get(follower_media_obj['pagination']['next_url'])
             follower_media_obj = json.loads(media_info.text)
-            self.populate_media_helper(follower_media_obj, "follower")
+            self.populate_media_helper(follower_media_obj, 'follower')
 
     def populate_my_followers_media(self):
         followers_info = requests.get('https://api.instagram.com/v1/users/self/followed-by?access_token={0}'.format(self.access_token))
@@ -138,6 +142,7 @@ class Stats:
                 next(gen)
             except StopIteration:
                 break
+        self.time_to_weight_mapping = time_to_weight_mapping
         return time_to_weight_mapping
     
     def exp_calc(self, total_wt, time_to_weight_mapping):
@@ -183,13 +188,12 @@ class Stats:
     def get_dominant_colors(self):
         color_frequencies = defaultdict(int)
         color_weights = defaultdict(int)
-        gen1 = (self.color_helper(p, color_weights, color_frequencies) for p in self.posts)
+        gen1 = (self.color_helper(p, color_weights, color_frequencies) for p in self.posts if p.image_url != '')
         while True:
             try:
                 next(gen1)
             except StopIteration:
                 break
-        os.remove('image')
         gen2 = (self.color_wt_helper(color_weights, color_frequencies, k) for k in color_weights.keys())
         while True:
             try:
@@ -225,7 +229,7 @@ class Stats:
                 next(gen2)
             except StopIteration:
                 break
-        max_filter = ""
+        max_filter = ''
         mx = 0
         for key in filter_dict_frequencies:
             if filter_dict_frequencies[key] > mx:
@@ -246,7 +250,6 @@ class Stats:
         image = wordcloud.to_image()
         image.save('frequent_wordcloud.png')
 
-
     def create_popular_tags_wordcloud(self):
         tags_likes_dict = defaultdict(int)
         tags_frequencies_dict = defaultdict(int)
@@ -255,7 +258,6 @@ class Stats:
                 tags_likes_dict[tag] += post.num_likes
                 tags_frequencies_dict[tag] += 1
         tag_weights = {tag: round(tags_likes_dict[tag] / tags_frequencies_dict[tag]) for tag in tags_likes_dict}
-        print(tags_weights_dict)
         text = ''
         for tag in tag_weights:
             for i in range(tag_weights[tag]):
@@ -264,11 +266,24 @@ class Stats:
         image = wordcloud.to_image()
         image.save('popular_wordcloud.png')
 
+    def create_histogram_likes_time(self):
+        d = defaultdict(int)
+        for key in list(self.time_to_weight_mapping.keys()):
+            hours = (int)(key / 3600)
+            d[hours] += int(self.time_to_weight_mapping[key])
+        xmax = max(d.keys())
+        ymax = max(d.values())
+        plt.figure() # <- makes a new figure and sets it active (add this)
+        plt.bar(list(d.keys()), list(d.values()), 1.0, color='')
+        plt.title('Histogram of activity during the 24 hours in a day') 
+        plt.xlabel('Time of the Day (Hours after Midnight (12 AM))')
+        plt.ylabel('Activity (Likes + Comments)')
+        plt.axis([0, xmax, 0, ymax])
+        # plt.figure() # <- makes new figure and makes it active (remove this)
+        plt.savefig('hist.png') # <- saves the currently active figure (which is empty in your code)
+
+
         
-
-
-
-
 #what to do if there are no posts
 #what to do if there are no likes
 #what to do if there are no comments
