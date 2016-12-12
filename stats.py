@@ -255,7 +255,6 @@ class Stats:
                 tags_likes_dict[tag] += post.num_likes
                 tags_frequencies_dict[tag] += 1
         tag_weights = {tag: round(tags_likes_dict[tag] / tags_frequencies_dict[tag]) for tag in tags_likes_dict}
-        print(tags_weights_dict)
         text = ''
         for tag in tag_weights:
             for i in range(tag_weights[tag]):
