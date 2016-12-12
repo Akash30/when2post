@@ -151,7 +151,7 @@ class Stats:
     def get_expected_time(self, time_to_weight_mapping):
         total_weight = sum(time_to_weight_mapping.values())
         expected_times = itertools.islice(self.exp_calc(total_weight, time_to_weight_mapping), 0, None)
-        return int(list(expected_times)[len(time_to_weight_mapping.keys()) - 1])
+        return round(list(expected_times)[len(time_to_weight_mapping.keys()) - 1])
 
     def compute_optimal_time(self):
         if len(self.posts) == 0:
@@ -233,18 +233,37 @@ class Stats:
                 max_filter = key
         return max_filter
 
-    def create_tags_wordcloud(self):
+    def create_frequently_used_tags_wordcloud(self):
         if len(self.posts) == 0:
             print('No posts data found')
             return -1
         text = ''
         for post in self.posts:
             for tag in post.tags:
-                text += tag + '\n'
+                text += tag + ' '
         
         wordcloud = WordCloud().generate(text)
         image = wordcloud.to_image()
-        image.save('wordcloud.png')
+        image.save('frequent_wordcloud.png')
+
+
+    def create_popular_tags_wordcloud(self):
+        tags_likes_dict = defaultdict(int)
+        tags_frequencies_dict = defaultdict(int)
+        for post in self.posts:
+            for tag in post.tags:
+                tags_likes_dict[tag] += post.num_likes
+                tags_frequencies_dict[tag] += 1
+        tag_weights = {tag: round(tags_likes_dict[tag] / tags_frequencies_dict[tag]) for tag in tags_likes_dict}
+        print(tags_weights_dict)
+        text = ''
+        for tag in tag_weights:
+            for i in range(tag_weights[tag]):
+                text += tag + ' '
+        wordcloud = WordCloud().generate(text)
+        image = wordcloud.to_image()
+        image.save('popular_wordcloud.png')
+
         
 
 

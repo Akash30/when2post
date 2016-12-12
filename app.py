@@ -5,6 +5,7 @@ import json
 from stats import Stats
 from bs4 import BeautifulSoup
 import base64
+import os
 
 
 # create the application object
@@ -26,11 +27,15 @@ def on_callback():
         response = requests.post('https://api.instagram.com/oauth/access_token', data = {'client_id':'f3ef7014dfdc4a64a832af7d487d787a', 'client_secret': 'b32ac1a8ad6b47a5bf5e5ed3548cf675', 
                                      'grant_type': 'authorization_code', 'redirect_uri': 'http://localhost:5000/callback/instagram', 'code': code})
         json_obj = json.loads(response.text)
+        print(json_obj)
         access_token = json_obj['access_token']
+        if not access_token:
+            return 'Could not get access token'
+
         statsObj = Stats(access_token)
         opt_time = statsObj.compute_optimal_time()
-        statsObj.create_tags_wordcloud()
-        print('created wordcloud')
+        statsObj.create_frequently_used_tags_wordcloud()
+        statsObj.create_popular_tags_wordcloud()
         hours = int(opt_time / 3600)
         minutes = int((opt_time - hours * 3600) / 60)
         seconds = (opt_time - hours * 3600 - minutes * 60)
@@ -38,11 +43,11 @@ def on_callback():
         best_filter = statsObj.get_best_filter()
         f_read = open('templates/results.html', 'r')
         soup = BeautifulSoup(f_read, 'html.parser')
-        new_tag1 = soup.new_tag("p")
+        new_tag1 = soup.new_tag("h1")
         new_tag1.string = 'Optimal time to Post: {}'.format(formatted_time)
         original_tag1 = soup.div
-        if original_tag1.p is not None:
-            original_tag1.p.replace_with(new_tag1)
+        if original_tag1.h1 is not None:
+            original_tag1.h1.replace_with(new_tag1)
         else:
             original_tag1.append(new_tag1)
         new_tag2 = soup.new_tag("h2")
@@ -60,26 +65,64 @@ def on_callback():
             head.style.replace_with(new_tag3)
         else: 
             head.append(new_tag3)
+        new_tag6 = soup.new_tag('h3')
+        new_tag6['id'] = 'frequent_tags_title'
+        new_tag6.string = 'Most Frequently Used Tags'
+
         src_bytes = None
-        with open('wordcloud.png', 'rb') as image_file:
+        with open('frequent_wordcloud.png', 'rb') as image_file:
             src_bytes = base64.b64encode(image_file.read())
         src_text = str(src_bytes)
         src_text = src_text[2:len(src_text) - 1]
         src_text = 'data:image/png;base64,' + src_text
         new_tag4 = soup.new_tag('img', src=src_text)
+        new_tag4['id'] = 'frequent_tags'
         
         body = soup.body
-        if body.img is not None:
-            body.img.replace_with(new_tag4)
+        t = body.find('h3', {'id': 'frequent_tags_title'})
+        if t is not None:
+            t.replace_with(new_tag6)
+        else:
+            body.append(new_tag6)
+        body = soup.body
+        t = body.find('img', {'id': 'frequent_tags'})
+        if t is not None:
+            t.replace_with(new_tag4)
         else:
             body.append(new_tag4)
+        body = soup.body
+        new_tag7 = soup.new_tag('h3')
+        new_tag7['id'] = 'popular_tags_title'
+        new_tag7.string = 'Most Liked Tags'
+        src_bytes = None
+        with open('popular_wordcloud.png', 'rb') as image_file:
+            src_bytes = base64.b64encode(image_file.read())
+        src_text = str(src_bytes)
+        src_text = src_text[2:len(src_text) - 1]
+        src_text = 'data:image/png;base64,' + src_text
+        new_tag5 = soup.new_tag('img', src=src_text)
+        new_tag5['id'] = 'popular_tags'
+        
+
+        t = body.find('h3', {'id': 'popular_tags_title'})
+        if t is not None:
+            t.replace_with(new_tag7)
+        else:
+            body.append(new_tag7)
+
+        t = body.find('img', {'id': 'popular_tags'})
+        if t is not None:
+            t.replace_with(new_tag5)
+        else:
+            body.append(new_tag5)
         html_str = soup.prettify(formatter="html")
         f_read.close()
         f_write = open('templates/results.html', 'w')
         f_write.write(html_str)
         f_write.close()
-        if not access_token:
-            return 'Could not get access token'
+    
+        os.remove('popular_wordcloud.png')
+        os.remove('frequent_wordcloud.png')
     except Exception as e:
         print(e)
     return render_template('results.html')
